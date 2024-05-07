@@ -28,7 +28,7 @@ def calculate_hr(video_data, fps, window_size=150, step_size=30):
     for start in range(0, len(rPPG_Signal) - window_size, step_size):
         end = start + window_size
         segment = rPPG_Signal[start:end]
-        peaks, _ = find_peaks(segment, distance=10, height=None)
+        peaks, _ = find_peaks(segment, distance=5, height=None)
         print("Peaks found:", peaks)
 
         if len(peaks) > 1:
@@ -43,14 +43,24 @@ def calculate_hr(video_data, fps, window_size=150, step_size=30):
 
     return times, bpm_per_frame
 
+# rPPG 신호 추출 및 시각화
+def plot_rPPG_signal(video_data):
+    rPPG_Signal = extract_green_channel_signal(video_data)
+    plt.figure(figsize=(10, 4))
+    plt.plot(rPPG_Signal, label='rPPG Signal')
+    plt.title('Extracted rPPG Signal Over Time')
+    plt.xlabel('Frame Number')
+    plt.ylabel('Signal Value')
+    plt.legend()
+    plt.show()
+
 # 메인 함수
 def main():
-    cap = cv2.VideoCapture(1)  # 기본 웹캠 사용
-    fps = cap.get(cv2.CAP_PROP_FPS)  # FPS 추출
+    cap = cv2.VideoCapture(1)  # 웹캠 인덱스 확인 필요
+    fps = cap.get(cv2.CAP_PROP_FPS)
     face_mesh = mp.solutions.face_mesh.FaceMesh(static_image_mode=False, max_num_faces=1, min_detection_confidence=0.5)
     video_data = []
-    target_size = (64, 64)  # 모든 이미지를 이 크기로 조정
-
+    target_size = (64, 64)
 
     try:
         while cap.isOpened():
@@ -66,26 +76,15 @@ def main():
                 bbox = get_square_bbox(get_bbox(lmrks, frame.shape[1], frame.shape[0]), frame.shape[1], frame.shape[0])
                 x1, y1, x2, y2 = bbox
                 cropped = frame_rgb[y1:y2, x1:x2]
-                resized = cv2.resize(cropped, target_size)  # 이미지를 동일한 크기로 리사이징
-                cv2.imwrite('imimg.jpg', resized)
+                resized = cv2.resize(cropped, target_size)
                 video_data.append(resized)
 
-
-            if len(video_data) >= 150:  # 150 프레임 축적 후 심박수 계산
-                if len(video_data) > 150:
-                    video_data.pop(0)  # 가장 오래된 프레임 제거
+            if len(video_data) >= 150:
                 video_array = np.array(video_data)
-                plot_rPPG_signal(video_array) 
-                # print(video_array.shape)
+                plot_rPPG_signal(video_array)
                 times, bpm_per_frame = calculate_hr(video_array, fps)
-                print(bpm_per_frame)
-                # plt.plot(times, bpm_per_frame)
-                # plt.xlabel('Time (s)')
-                # plt.ylabel('Estimated Heart Rate (BPM)')
-                # plt.title('Heart Rate Over Time')
-                # plt.show(block=False)
-                # plt.pause(0.01)
-                # plt.clf()
+                print("Current heart rate measurements:", bpm_per_frame)
+                video_data.pop(0)  # Maintain sliding window
 
             cv2.imshow('Webcam Feed', frame)
 
