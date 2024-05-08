@@ -28,8 +28,8 @@ def calculate_hr(video_data, fps, window_size=150, step_size=30):
     for start in range(0, len(rPPG_Signal) - window_size, step_size):
         end = start + window_size
         segment = rPPG_Signal[start:end]
-        peaks, _ = find_peaks(segment, distance=5, height=None)
-        print("Peaks found:", peaks)
+        peaks, _ = find_peaks(segment, distance=fps//2, height=None)
+        # print("Peaks found:", peaks)
 
         if len(peaks) > 1:
             ibi = np.diff(peaks) / fps
@@ -54,12 +54,24 @@ def plot_rPPG_signal(video_data):
     plt.legend()
     plt.show()
 
+# rPPG 신호 추출 및 시각화
+def full_plot_rPPG_signal(video_data):
+    rPPG_Signal = extract_green_channel_signal(video_data)
+    plt.figure(figsize=(10, 4))
+    plt.plot(rPPG_Signal, label='Full rPPG Signal')
+    plt.title('Full Wave Signal')
+    plt.xlabel('Frame Number')
+    plt.ylabel('Signal Value')
+    plt.legend()
+    plt.show()
+
 # 메인 함수
 def main():
     cap = cv2.VideoCapture(1)  # 웹캠 인덱스 확인 필요
     fps = cap.get(cv2.CAP_PROP_FPS)
     face_mesh = mp.solutions.face_mesh.FaceMesh(static_image_mode=False, max_num_faces=1, min_detection_confidence=0.5)
     video_data = []
+    full_video_data = []
     target_size = (64, 64)
 
     try:
@@ -78,8 +90,9 @@ def main():
                 cropped = frame_rgb[y1:y2, x1:x2]
                 resized = cv2.resize(cropped, target_size)
                 video_data.append(resized)
+                full_video_data.append(resized)
 
-            if len(video_data) >= 150:
+            if len(video_data) >= 151:
                 video_array = np.array(video_data)
                 plot_rPPG_signal(video_array)
                 times, bpm_per_frame = calculate_hr(video_array, fps)
@@ -92,8 +105,11 @@ def main():
                 break
 
     finally:
+        full_video_data_array = np.array(full_video_data)
         cap.release()
         cv2.destroyAllWindows()
+        # print(full_video_data_array)
+        full_plot_rPPG_signal(full_video_data_array)
 
 if __name__ == "__main__":
     main()
