@@ -66,29 +66,34 @@ def full_plot_rPPG_signal(video_data):
     plt.show()
 
 def calculate_SI(signal, fps, window_size=150, step_size=30):
+    # 1. rPPG 신호 추출
     rPPG_Signal = extract_green_channel_signal(signal)
     rppg = rPPG_Signal - np.mean(rPPG_Signal)  # DC 컴포넌트 제거
-    print(rppg.shape)
-    # 2. NN 간격 추출
-    # PPG 신호에서 NN 간격 추출
+
+    # 2. PPI (Peak-to-Peak Interval) 추출
     peaks, _ = find_peaks(rppg, distance=fps//2)  # 예: 20은 최소 간격 (ms)입니다.
-    nn_intervals = np.diff(peaks)  # NN 간격 계산
+    nn_intervals = np.diff(peaks) / fps  # PPI를 초 단위로 변환
 
-    # 3. AMo, Mo, MxDMn 계산
-    amplitude_mode = np.max(np.histogram(nn_intervals, bins=np.arange(0, 2000, 50))[0])  # AMo 계산
-    mode_mo = np.median(nn_intervals)  # Mo 계산
-    dmn = np.std(nn_intervals)  # DMn 계산
+    # 3. Mode (Mo) 및 Amplitude of Mode (AMo) 계산
+    bin_width = 0.05  # 50ms를 초 단위로 변환
+    hist, bin_edges = np.histogram(nn_intervals, bins=np.arange(0, np.max(nn_intervals), bin_width))
+    print(f"hist : {hist}")
+    print(f"bin: {bin_edges}")
+    Mo = bin_edges[np.argmax(hist)]
+    AMo = (np.sum((nn_intervals >= Mo - bin_width/2) & (nn_intervals < Mo + bin_width/2)) / len(nn_intervals))
 
-    # 4. SI 계산
-    M = 1  # 보정 계수 (실제 값에 따라 조절 필요)
-    stress_index = (amplitude_mode * 100) / (2 * mode_mo * M * dmn)
+    # 4. Variation range (MxDMn) 계산
+    Mx = np.max(nn_intervals)
+    Mn = np.min(nn_intervals)   
+    MxDMn = Mx - Mn
 
-    print(f"AMo: {amplitude_mode}, Mo: {mode_mo}, MxDMn: {dmn}")
-    print(f"Stress Index (SI): {stress_index}")
+    # 5. Baevsky stress index (SI) 계산 0~40 사이 값으로 나옴
+    SI = (AMo * 100) / (2 * Mo * MxDMn)
+    return SI
 
 # 메인 함수
 def main():
-    cap = cv2.VideoCapture(1)  # 웹캠 인덱스 확인 필요
+    cap = cv2.VideoCapture(0)  # 웹캠 인덱스 확인 필요
     fps = cap.get(cv2.CAP_PROP_FPS)
     face_mesh = mp.solutions.face_mesh.FaceMesh(static_image_mode=False, max_num_faces=1, min_detection_confidence=0.5)
     video_data = []
@@ -130,8 +135,10 @@ def main():
         cap.release()
         cv2.destroyAllWindows()
         # print(full_video_data_array)
-        full_plot_rPPG_signal(full_video_data_array)
+        # full_plot_rPPG_signal(full_video_data_array)
         stress_index = calculate_SI(full_video_data_array, fps)
-        print(stress_index)
+        print(f"stress index : {stress_index}")
+
 if __name__ == "__main__":
     main()
+    
