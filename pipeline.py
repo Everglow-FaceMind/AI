@@ -65,6 +65,27 @@ def full_plot_rPPG_signal(video_data):
     plt.legend()
     plt.show()
 
+def calculate_SI(signal, fps, window_size=150, step_size=30):
+    rPPG_Signal = extract_green_channel_signal(signal)
+    rppg = rPPG_Signal - np.mean(rPPG_Signal)  # DC 컴포넌트 제거
+    print(rppg.shape)
+    # 2. NN 간격 추출
+    # PPG 신호에서 NN 간격 추출
+    peaks, _ = find_peaks(rppg, distance=fps//2)  # 예: 20은 최소 간격 (ms)입니다.
+    nn_intervals = np.diff(peaks)  # NN 간격 계산
+
+    # 3. AMo, Mo, MxDMn 계산
+    amplitude_mode = np.max(np.histogram(nn_intervals, bins=np.arange(0, 2000, 50))[0])  # AMo 계산
+    mode_mo = np.median(nn_intervals)  # Mo 계산
+    dmn = np.std(nn_intervals)  # DMn 계산
+
+    # 4. SI 계산
+    M = 1  # 보정 계수 (실제 값에 따라 조절 필요)
+    stress_index = (amplitude_mode * 100) / (2 * mode_mo * M * dmn)
+
+    print(f"AMo: {amplitude_mode}, Mo: {mode_mo}, MxDMn: {dmn}")
+    print(f"Stress Index (SI): {stress_index}")
+
 # 메인 함수
 def main():
     cap = cv2.VideoCapture(1)  # 웹캠 인덱스 확인 필요
@@ -110,6 +131,7 @@ def main():
         cv2.destroyAllWindows()
         # print(full_video_data_array)
         full_plot_rPPG_signal(full_video_data_array)
-
+        stress_index = calculate_SI(full_video_data_array, fps)
+        print(stress_index)
 if __name__ == "__main__":
     main()
