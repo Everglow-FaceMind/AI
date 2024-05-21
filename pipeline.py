@@ -2,22 +2,42 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter
-from scipy.signal import find_peaks
+from scipy.signal import find_peaks, butter, filtfilt
 import mediapipe as mp
 from utils import face_mesh_to_array, get_bbox, get_square_bbox  # utils.py에서 필요한 함수들을 가져옵니다.
+from scipy import signal
 
 # 미분 계산을 위한 함수
 def derivative(signal):
     return np.gradient(signal)
 
+# 밴드패스 필터 설정
+def butter_bandpass(lowcut, highcut, fs, order=5):
+    nyq = 0.5 * fs
+    low = lowcut / nyq
+    high = highcut / nyq
+    b, a = butter(order, [low, high], btype='band')
+    return b, a
+
+def butter_bandpass_filter(data, lowcut, highcut, fs = 30, order=2):
+    b, a = butter_bandpass(lowcut, highcut, fs, order=order)
+    y = filtfilt(b, a, data)
+    return y
+
 # 그린 채널 신호 추출 함수
 def extract_green_channel_signal(video_data):
     green_channel = video_data[:, :, :, 1]  # 그린 채널 추출
+    # 각 프레임에 대한 그린 채널의 평균값 계산
     green_channel_mean = green_channel.mean(axis=(1, 2))
-    # print("Green channel mean:", green_channel_mean)
-    smoothed_wave = gaussian_filter(green_channel_mean, sigma=2)
-    diff_smoothed_wave = derivative(smoothed_wave)
+    detrended_signal = signal.detrend(green_channel_mean)
+    smoothed_wave = gaussian_filter(detrended_signal, sigma=4)
+    # 신호에 필터 적용
+    filtered_signal = butter_bandpass_filter(smoothed_wave, 0.67, 3.33, fs=30, order=2)
+
+    diff_smoothed_wave = derivative(filtered_signal)
+
     return diff_smoothed_wave
+
 
 # 심박수 계산 함수
 def calculate_hr(video_data, fps, window_size=150, step_size=30):
